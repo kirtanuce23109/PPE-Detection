@@ -1,37 +1,58 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 
+# ---------------- CONFIG ----------------
 st.set_page_config(page_title="PPE Safety Dashboard", layout="wide")
 
-# ---------------- STYLE ----------------
+# ---------------- STYLING ----------------
 st.markdown("""
 <style>
-body { background-color: #0B0F1A; }
+body {
+    background-color: #0B0F1A;
+}
 
-.metric-card {
-    background: #1c1f26;
+h1, h2, h3 {
+    color: #FFD700;
+}
+
+.metric-box {
+    background-color: #1c1f26;
     padding: 15px;
     border-radius: 12px;
     text-align: center;
 }
 
 .warning {
-    background: #ff4b4b;
+    background-color: #ff4b4b;
     padding: 10px;
     border-radius: 10px;
     color: white;
 }
 
 .safe {
-    background: #00c853;
+    background-color: #00c853;
     padding: 10px;
     border-radius: 10px;
     color: white;
 }
+
+.watermark {
+    position: fixed;
+    top: 10px;
+    right: 20px;
+    opacity: 0.6;
+    font-size: 16px;
+    color: #FFD700;
+    z-index: 1000;
+}
 </style>
+
+<div class="watermark">
+👷 Kirtan Gajjar
+</div>
 """, unsafe_allow_html=True)
 
-# ---------------- VIDEO IDs ----------------
+# ---------------- VIDEO FILE IDs ----------------
 cam1 = "1-lmVREDPnH03Qyo5tJ1pT4pioM8MsD_Q"
 cam2 = "1K3JgrAP4ez33oDYy6gromZrIg52NCDx9"
 cam3 = "11WwV3JBL6oowDhY9fMN63OXKsJ93GoqS"
@@ -68,20 +89,20 @@ data = {
     }
 }
 
-# ---------------- VIDEO ----------------
+# ---------------- VIDEO PLAYER ----------------
 def show_video(file_id):
     st.markdown(f"""
     <iframe src="https://drive.google.com/file/d/{file_id}/preview"
-    width="100%" height="300"></iframe>
+    width="100%" height="300" allow="autoplay"></iframe>
     """, unsafe_allow_html=True)
 
-# ---------------- CHART ----------------
+# ---------------- PIE CHART ----------------
 def pie_chart(values, labels):
     fig, ax = plt.subplots()
     ax.pie(values, labels=labels, autopct='%1.1f%%')
     return fig
 
-# ---------------- HOME ----------------
+# ---------------- HOME PAGE ----------------
 def home():
     st.title("🚧 PPE SAFETY DASHBOARD")
 
@@ -107,24 +128,24 @@ def home():
         st.pyplot(pie_chart([total_vest, total_workers-total_vest],
                             ["Vest", "No Vest"]))
 
-    st.subheader("📡 Camera Feeds")
+    st.subheader("📡 Live Camera Feeds")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.markdown("### Camera 1")
+        st.markdown("### 📷 Camera 1")
         show_video(cam1)
         if st.button("View Camera 1"):
             st.session_state.page = "Camera 1"
 
     with col2:
-        st.markdown("### Camera 2")
+        st.markdown("### 📷 Camera 2")
         show_video(cam2)
         if st.button("View Camera 2"):
             st.session_state.page = "Camera 2"
 
     with col3:
-        st.markdown("### Camera 3")
+        st.markdown("### 📷 Camera 3")
         show_video(cam3)
         if st.button("View Camera 3"):
             st.session_state.page = "Camera 3"
@@ -142,7 +163,7 @@ def camera_page(title, cam_id, cam_key):
     if d["helmet_no"] > 0:
         st.markdown('<div class="warning">⚠️ Helmet Missing</div>', unsafe_allow_html=True)
     else:
-        st.markdown('<div class="safe">✅ Safe</div>', unsafe_allow_html=True)
+        st.markdown('<div class="safe">✅ All Workers Safe</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
@@ -152,7 +173,6 @@ def camera_page(title, cam_id, cam_key):
     col2.pyplot(pie_chart([d["vest_yes"], d["vest_no"]],
                          ["Vest", "No Vest"]))
 
-    # -------- WORKER TABLE --------
     st.subheader("👷 Worker Details")
 
     for w in d["workers"]:
@@ -165,7 +185,7 @@ if "page" not in st.session_state:
     st.session_state.page = "Home"
 
 page = st.sidebar.radio(
-    "Navigation",
+    "📊 Navigation",
     ["Home", "Camera 1", "Camera 2", "Camera 3"],
     index=["Home", "Camera 1", "Camera 2", "Camera 3"].index(st.session_state.page)
 )
@@ -180,3 +200,11 @@ elif page == "Camera 2":
     camera_page("📷 Camera 2", cam2, "cam2")
 elif page == "Camera 3":
     camera_page("📷 Camera 3", cam3, "cam3")
+
+# ---------------- FOOTER ----------------
+st.markdown("""
+<hr style="border:1px solid #333;">
+<p style='text-align:center; color:gray; font-size:14px;'>
+© 2026 PPE Safety Monitoring System | Developed by Kirtan Gajjar
+</p>
+""", unsafe_allow_html=True)
