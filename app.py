@@ -2,31 +2,45 @@ import streamlit as st
 import matplotlib.pyplot as plt
 
 # ---------------- CONFIG ----------------
-st.set_page_config(page_title="PPE Dashboard", layout="wide")
+st.set_page_config(page_title="PPE Safety Dashboard", layout="wide")
 
 # ---------------- STYLE ----------------
 st.markdown("""
 <style>
 body {
-    background-color: #0E1117;
+    background-color: #0B0F1A;
 }
+
+h1, h2, h3 {
+    color: #FFD700;
+}
+
 .card {
     background-color: #1c1f26;
     padding: 20px;
-    border-radius: 15px;
-    margin-bottom: 20px;
+    border-radius: 12px;
 }
-.title {
-    font-size: 28px;
-    font-weight: bold;
+
+.warning {
+    background-color: #ff4b4b;
+    padding: 10px;
+    border-radius: 10px;
+    color: white;
+}
+
+.safe {
+    background-color: #00c853;
+    padding: 10px;
+    border-radius: 10px;
+    color: white;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- VIDEO LINKS ----------------
-cam1 = "https://drive.google.com/uc?id=1-lmVREDPnH03Qyo5tJ1pT4pioM8MsD_Q"
-cam2 = "https://drive.google.com/uc?id=1K3JgrAP4ez33oDYy6gromZrIg52NCDx9"
-cam3 = "https://drive.google.com/uc?id=11WwV3JBL6oowDhY9fMN63OXKsJ93GoqS"
+# ---------------- VIDEO FILE IDs ----------------
+cam1 = "1-lmVREDPnH03Qyo5tJ1pT4pioM8MsD_Q"
+cam2 = "1K3JgrAP4ez33oDYy6gromZrIg52NCDx9"
+cam3 = "11WwV3JBL6oowDhY9fMN63OXKsJ93GoqS"
 
 # ---------------- DATA ----------------
 data = {
@@ -36,11 +50,10 @@ data = {
 }
 
 # ---------------- VIDEO PLAYER ----------------
-def show_video(url):
+def show_video(file_id):
     st.markdown(f"""
-    <video width="100%" controls>
-      <source src="{url}" type="video/mp4">
-    </video>
+    <iframe src="https://drive.google.com/file/d/{file_id}/preview"
+    width="100%" height="300" allow="autoplay"></iframe>
     """, unsafe_allow_html=True)
 
 # ---------------- CHART ----------------
@@ -61,9 +74,15 @@ def show_charts(d):
                 autopct='%1.1f%%')
         st.pyplot(fig2)
 
-# ---------------- HOME PAGE ----------------
+# ---------------- HOME ----------------
 def home():
-    st.title("🚧 PPE Safety Dashboard")
+    st.title("🚧 PPE SAFETY MONITORING SYSTEM")
+
+    st.markdown("""
+    <div class="warning">
+    ⚠️ SAFETY FIRST: Workers must wear helmets and vests at all times.
+    </div>
+    """, unsafe_allow_html=True)
 
     st.subheader("📡 Live Camera Feeds")
 
@@ -81,19 +100,21 @@ def home():
         st.markdown("### 📷 Camera 3")
         show_video(cam3)
 
-    st.markdown("---")
-
-    st.info("👉 Use sidebar to view detailed analytics for each camera")
-
 # ---------------- CAMERA PAGE ----------------
-def camera_page(title, video_url, cam_key):
+def camera_page(title, cam_id, cam_key):
     st.title(title)
 
-    show_video(video_url)
+    show_video(cam_id)
 
     d = data[cam_key]
 
     st.metric("👷 Total Workers", d["total"])
+
+    # Safety status
+    if d["helmet_no"] > 0:
+        st.markdown('<div class="warning">⚠️ Some workers are NOT wearing helmets</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="safe">✅ All workers are safe</div>', unsafe_allow_html=True)
 
     show_charts(d)
 
