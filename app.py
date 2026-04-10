@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from ultralytics import YOLO
 
 # Load model
-model = YOLO("best.pt")
+model = YOLO("yolov8n.pt")
 
 # ---------------- HOME PAGE ----------------
 def home():
@@ -62,7 +62,10 @@ def process_video(video_path):
 def camera_page(video_path, title):
     st.title(title)
 
-    st.video(video_path)
+    uploaded_file = st.file_uploader("Upload Video", type=["mp4"])
+
+if uploaded_file is not None:
+    st.video(uploaded_file)
 
     workers = process_video(video_path)
 
