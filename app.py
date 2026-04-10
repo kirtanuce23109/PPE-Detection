@@ -1,120 +1,61 @@
 import streamlit as st
-import cv2
-import tempfile
 import matplotlib.pyplot as plt
-from ultralytics import YOLO
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="PPE Detection System", layout="wide")
+st.set_page_config(page_title="PPE Dashboard", layout="wide")
 
-# ---------------- LOAD MODEL ----------------
-# Using default YOLO model (no need best.pt)
-model = YOLO("yolov8n.pt")
+# ---------------- GOOGLE DRIVE LINKS ----------------
+cam1 = "https://drive.google.com/uc?id=1-lmVREDPnH03Qyo5tJ1pT4pioM8MsD_Q"
+cam2 = "https://drive.google.com/uc?id=1K3JgrAP4ez33oDYy6gromZrIg52NCDx9"
+cam3 = "https://drive.google.com/uc?id=11WwV3JBL6oowDhY9fMN63OXKsJ93GoqS"
 
-# ---------------- HOME PAGE ----------------
+# ---------------- HOME ----------------
 def home():
     st.title("🚧 PPE Safety Monitoring System")
 
     st.markdown("""
-    ### 🪖 What is PPE?
-    PPE (Personal Protective Equipment) includes:
-    - Helmet
-    - Safety Vest
-    - Gloves
-    - Boots
-
-    ### ⚠️ Importance of PPE
-    - Prevents injuries  
-    - Improves worker safety  
-    - Mandatory on construction sites  
+    ### 🪖 PPE Importance
+    - Helmet and vest are mandatory
+    - Reduces accidents
+    - Improves safety compliance
     """)
 
-# ---------------- PROCESS VIDEO ----------------
-def process_video(video_file):
-    tfile = tempfile.NamedTemporaryFile(delete=False)
-    tfile.write(video_file.read())
-
-    cap = cv2.VideoCapture(tfile.name)
-
-    workers = {}
-    frame_count = 0
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        frame_count += 1
-
-        results = model.track(frame, persist=True)
-
-        for r in results:
-            if r.boxes.id is None:
-                continue
-
-            for box, track_id, cls in zip(r.boxes.xyxy, r.boxes.id, r.boxes.cls):
-                track_id = int(track_id)
-                label = model.names[int(cls)]
-
-                if track_id not in workers:
-                    workers[track_id] = {"helmet": 0, "vest": 0}
-
-                if "helmet" in label:
-                    workers[track_id]["helmet"] += 1
-
-                if "vest" in label:
-                    workers[track_id]["vest"] += 1
-
-    cap.release()
-    return workers
-
 # ---------------- CAMERA PAGE ----------------
-def camera_page(title):
+def camera_page(title, video_url):
+
     st.title(title)
 
-    uploaded_file = st.file_uploader("📤 Upload Video", type=["mp4"])
+    # Show video from Google Drive
+    st.video(video_url)
 
-    if uploaded_file is not None:
-        st.video(uploaded_file)
+    # Sample data (you can upgrade later)
+    total_workers = 12
+    helmet_yes = 9
+    helmet_no = 3
+    vest_yes = 8
+    vest_no = 4
 
-        st.info("Processing video... please wait ⏳")
+    st.metric("👷 Total Workers", total_workers)
 
-        workers = process_video(uploaded_file)
+    col1, col2 = st.columns(2)
 
-        total = len(workers)
-        st.metric("👷 Total Workers", total)
+    with col1:
+        fig1, ax1 = plt.subplots()
+        ax1.pie([helmet_yes, helmet_no],
+                labels=["Helmet", "No Helmet"],
+                autopct='%1.1f%%')
+        st.pyplot(fig1)
 
-        helmet_yes = sum(1 for w in workers.values() if w["helmet"] > 0)
-        helmet_no = total - helmet_yes
+    with col2:
+        fig2, ax2 = plt.subplots()
+        ax2.pie([vest_yes, vest_no],
+                labels=["Vest", "No Vest"],
+                autopct='%1.1f%%')
+        st.pyplot(fig2)
 
-        vest_yes = sum(1 for w in workers.values() if w["vest"] > 0)
-        vest_no = total - vest_yes
+    st.subheader("👷 Worker Details")
 
-        # ---------------- PIE CHARTS ----------------
-        col1, col2 = st.columns(2)
-
-        with col1:
-            fig1, ax1 = plt.subplots()
-            ax1.pie([helmet_yes, helmet_no],
-                    labels=["Helmet", "No Helmet"],
-                    autopct='%1.1f%%')
-            st.pyplot(fig1)
-
-        with col2:
-            fig2, ax2 = plt.subplots()
-            ax2.pie([vest_yes, vest_no],
-                    labels=["Vest", "No Vest"],
-                    autopct='%1.1f%%')
-            st.pyplot(fig2)
-
-        # ---------------- WORKER DETAILS ----------------
-        st.subheader("👷 Worker Details")
-
-        for wid, w in workers.items():
-            helmet_status = "✅" if w["helmet"] > 0 else "❌"
-            vest_status = "✅" if w["vest"] > 0 else "❌"
-
-            st.write(f"Worker {wid} → Helmet: {helmet_status} | Vest: {vest_status}")
+    for i in range(1, total_workers + 1):
+        st.write(f"Worker {i} → Helmet: ✅ | Vest: ❌")
 
 # ---------------- NAVIGATION ----------------
 page = st.sidebar.selectbox(
@@ -126,10 +67,10 @@ if page == "Home":
     home()
 
 elif page == "Camera 1":
-    camera_page("📷 Camera 1")
+    camera_page("📷 Camera 1", cam1)
 
 elif page == "Camera 2":
-    camera_page("📷 Camera 2")
+    camera_page("📷 Camera 2", cam2)
 
 elif page == "Camera 3":
-    camera_page("📷 Camera 3")
+    camera_page("📷 Camera 3", cam3)
