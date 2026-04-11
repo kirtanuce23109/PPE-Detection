@@ -2,25 +2,17 @@ import streamlit as st
 import json
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="PPE AI Dashboard", layout="wide")
+st.set_page_config(page_title="PPE Tracking Dashboard", layout="wide")
 
 # ---------------- STYLE ----------------
 st.markdown("""
 <style>
 body { background-color: #0B0F1A; color: white; }
 
-.card {
-    padding: 15px;
-    border-radius: 12px;
-    background: #111827;
-    text-align: center;
-}
-
 .safe {
     background-color: #00c853;
     padding: 10px;
     border-radius: 10px;
-    color: white;
     text-align:center;
 }
 
@@ -28,38 +20,50 @@ body { background-color: #0B0F1A; color: white; }
     background-color: #ff1744;
     padding: 10px;
     border-radius: 10px;
-    color: white;
     text-align:center;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- LOAD JSON ----------------
-def load_data(file):
+def load_workers(file):
     try:
         with open(file, "r") as f:
             return json.load(f)
     except:
-        return {"total":0,"helmet_yes":0,"helmet_no":0,"vest_yes":0,"vest_no":0}
+        return {}
 
-cam_data = {
-    "Camera 1": load_data("cam1_data.json"),
-    "Camera 2": load_data("cam2_data.json"),
-    "Camera 3": load_data("cam3_data.json"),
-}
+workers = load_workers("cam1_workers.json")
 
 # ---------------- VIDEO ----------------
+video_id = "1-lmVREDPnH03Qyo5tJ1pT4pioM8MsD_Q"
+
 def show_video(file_id):
     st.markdown(f"""
     <iframe src="https://drive.google.com/file/d/{file_id}/preview"
-    width="100%" height="300" allow="autoplay"></iframe>
+    width="100%" height="350"></iframe>
     """, unsafe_allow_html=True)
 
-# ---------------- PIE CHART ----------------
+# ---------------- CALCULATIONS ----------------
+total_workers = len(workers)
+
+helmet_yes = 0
+vest_yes = 0
+
+for w in workers.values():
+    if w["helmet_time"] > w["no_helmet_time"]:
+        helmet_yes += 1
+    if w["vest_time"] > w["no_vest_time"]:
+        vest_yes += 1
+
+helmet_no = total_workers - helmet_yes
+vest_no = total_workers - vest_yes
+
+# ---------------- PIE FUNCTION ----------------
 def pie_chart(values, labels):
     if sum(values) == 0:
         fig, ax = plt.subplots()
-        ax.text(0.5, 0.5, "No Data Available", ha='center')
+        ax.text(0.5, 0.5, "No Data", ha='center')
         ax.axis("off")
         return fig
 
@@ -67,100 +71,48 @@ def pie_chart(values, labels):
     ax.pie(values, labels=labels, autopct='%1.1f%%')
     return fig
 
-# ---------------- CAMERA PAGE ----------------
-def camera_page(name, data, video_id):
+# ---------------- UI ----------------
+st.title("🚧 PPE WORKER TRACKING DASHBOARD")
 
-    st.title(f"📷 {name}")
-    show_video(video_id)
+# VIDEO
+show_video(video_id)
 
-    st.subheader("👷 Workers Summary")
+# METRICS
+col1, col2, col3 = st.columns(3)
 
-    total = data.get("total", 0)
-    helmet_yes = data.get("helmet_yes", 0)
-    helmet_no = data.get("helmet_no", 0)
-    vest_yes = data.get("vest_yes", 0)
-    vest_no = data.get("vest_no", 0)
+col1.metric("👷 Total Workers", total_workers)
 
-    col1, col2, col3 = st.columns(3)
+helmet_percent = (helmet_yes / total_workers * 100) if total_workers else 0
+vest_percent = (vest_yes / total_workers * 100) if total_workers else 0
 
-    col1.metric("Total Workers", total)
+col2.metric("🪖 Helmet Compliance", f"{helmet_percent:.1f}%")
+col3.metric("🦺 Vest Compliance", f"{vest_percent:.1f}%")
 
-    helmet_percent = (helmet_yes / total * 100) if total > 0 else 0
-    vest_percent = (vest_yes / total * 100) if total > 0 else 0
+# SAFETY ALERT
+if helmet_no > 0 or vest_no > 0:
+    st.markdown('<div class="danger">⚠️ Unsafe Workers Detected</div>', unsafe_allow_html=True)
+else:
+    st.markdown('<div class="safe">✅ All Workers Safe</div>', unsafe_allow_html=True)
 
-    col2.metric("Helmet Compliance", f"{helmet_percent:.1f}%")
-    col3.metric("Vest Compliance", f"{vest_percent:.1f}%")
+# CHARTS
+c1, c2 = st.columns(2)
 
-    # SAFETY ALERT
-    if helmet_no > 0 or vest_no > 0:
-        st.markdown('<div class="danger">⚠️ Unsafe Workers Detected</div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="safe">✅ All Workers Safe</div>', unsafe_allow_html=True)
+c1.pyplot(pie_chart([helmet_yes, helmet_no], ["Helmet", "No Helmet"]))
+c2.pyplot(pie_chart([vest_yes, vest_no], ["Vest", "No Vest"]))
 
-    # PIE CHARTS
-    c1, c2 = st.columns(2)
+# ---------------- WORKER TABLE ----------------
+st.subheader("👷 Worker-wise Tracking (Time Based)")
 
-    c1.pyplot(pie_chart([helmet_yes, helmet_no], ["Helmet", "No Helmet"]))
-    c2.pyplot(pie_chart([vest_yes, vest_no], ["Vest", "No Vest"]))
+for wid, w in workers.items():
 
-# ---------------- HOME PAGE ----------------
-def home_page():
+    helmet_status = "✅" if w["helmet_time"] > w["no_helmet_time"] else "❌"
+    vest_status = "✅" if w["vest_time"] > w["no_vest_time"] else "❌"
 
-    st.title("🚧 PPE SAFETY DASHBOARD")
-
-    total = sum(d["total"] for d in cam_data.values())
-    helmet = sum(d["helmet_yes"] for d in cam_data.values())
-    vest = sum(d["vest_yes"] for d in cam_data.values())
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("👷 Total Workers", total)
-
-    helmet_percent = (helmet / total * 100) if total > 0 else 0
-    vest_percent = (vest / total * 100) if total > 0 else 0
-
-    col2.metric("🪖 Helmet Compliance", f"{helmet_percent:.1f}%")
-    col3.metric("🦺 Vest Compliance", f"{vest_percent:.1f}%")
-
-    st.markdown("---")
-    st.subheader("🎥 Live Camera Feeds")
-
-    cam1 = "1-lmVREDPnH03Qyo5tJ1pT4pioM8MsD_Q"
-    cam2 = "1K3JgrAP4ez33oDYy6gromZrIg52NCDx9"
-    cam3 = "11WwV3JBL6oowDhY9fMN63OXKsJ93GoqS"
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.write("Camera 1")
-        show_video(cam1)
-
-    with c2:
-        st.write("Camera 2")
-        show_video(cam2)
-
-    with c3:
-        st.write("Camera 3")
-        show_video(cam3)
-
-# ---------------- NAVIGATION ----------------
-page = st.sidebar.radio(
-    "Navigation",
-    ["Home", "Camera 1", "Camera 2", "Camera 3"]
-)
-
-cam1_id = "1-lmVREDPnH03Qyo5tJ1pT4pioM8MsD_Q"
-cam2_id = "1K3JgrAP4ez33oDYy6gromZrIg52NCDx9"
-cam3_id = "11WwV3JBL6oowDhY9fMN63OXKsJ93GoqS"
-
-if page == "Home":
-    home_page()
-
-elif page == "Camera 1":
-    camera_page("Camera 1", cam_data["Camera 1"], cam1_id)
-
-elif page == "Camera 2":
-    camera_page("Camera 2", cam_data["Camera 2"], cam2_id)
-
-elif page == "Camera 3":
-    camera_page("Camera 3", cam_data["Camera 3"], cam3_id)
+    st.markdown(f"""
+    **Worker {wid}**
+    - 🪖 Helmet Time: {w['helmet_time']:.2f} sec
+    - ❌ No Helmet Time: {w['no_helmet_time']:.2f} sec
+    - 🦺 Vest Time: {w['vest_time']:.2f} sec
+    - ❌ No Vest Time: {w['no_vest_time']:.2f} sec
+    - Status: Helmet {helmet_status} | Vest {vest_status}
+    """)
