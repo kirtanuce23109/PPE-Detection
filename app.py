@@ -1,26 +1,16 @@
 import streamlit as st
 import matplotlib.pyplot as plt
+import json
 
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="PPE Safety Dashboard", layout="wide")
 
-# ---------------- STYLING ----------------
+# ---------------- STYLE ----------------
 st.markdown("""
 <style>
-body {
-    background-color: #0B0F1A;
-}
+body { background-color: #0B0F1A; }
 
-h1, h2, h3 {
-    color: #FFD700;
-}
-
-.metric-box {
-    background-color: #1c1f26;
-    padding: 15px;
-    border-radius: 12px;
-    text-align: center;
-}
+h1, h2, h3 { color: #FFD700; }
 
 .warning {
     background-color: #ff4b4b;
@@ -57,36 +47,18 @@ cam1 = "1-lmVREDPnH03Qyo5tJ1pT4pioM8MsD_Q"
 cam2 = "1K3JgrAP4ez33oDYy6gromZrIg52NCDx9"
 cam3 = "11WwV3JBL6oowDhY9fMN63OXKsJ93GoqS"
 
-# ---------------- DATA ----------------
+# ---------------- LOAD REAL DATA ----------------
+def load_data(file):
+    try:
+        with open(file, "r") as f:
+            return json.load(f)
+    except:
+        return {"total": 0, "helmet_yes": 0, "helmet_no": 0, "vest_yes": 0, "vest_no": 0}
+
 data = {
-    "cam1": {
-        "total": 12,
-        "helmet_yes": 9, "helmet_no": 3,
-        "vest_yes": 8, "vest_no": 4,
-        "workers": [
-            {"id": 1, "helmet": True, "vest": True},
-            {"id": 2, "helmet": False, "vest": True},
-            {"id": 3, "helmet": True, "vest": False},
-        ]
-    },
-    "cam2": {
-        "total": 10,
-        "helmet_yes": 6, "helmet_no": 4,
-        "vest_yes": 7, "vest_no": 3,
-        "workers": [
-            {"id": 1, "helmet": True, "vest": True},
-            {"id": 2, "helmet": False, "vest": False},
-        ]
-    },
-    "cam3": {
-        "total": 8,
-        "helmet_yes": 5, "helmet_no": 3,
-        "vest_yes": 4, "vest_no": 4,
-        "workers": [
-            {"id": 1, "helmet": True, "vest": False},
-            {"id": 2, "helmet": False, "vest": True},
-        ]
-    }
+    "cam1": load_data("cam1_data.json"),
+    "cam2": load_data("cam2_data.json"),
+    "cam3": load_data("cam3_data.json"),
 }
 
 # ---------------- VIDEO PLAYER ----------------
@@ -113,8 +85,8 @@ def home():
     col1, col2, col3 = st.columns(3)
 
     col1.metric("👷 Total Workers", total_workers)
-    col2.metric("🪖 Helmet Compliance", f"{(total_helmet/total_workers)*100:.1f}%")
-    col3.metric("🦺 Vest Compliance", f"{(total_vest/total_workers)*100:.1f}%")
+    col2.metric("🪖 Helmet Compliance", f"{(total_helmet/total_workers)*100:.1f}%" if total_workers else "0%")
+    col3.metric("🦺 Vest Compliance", f"{(total_vest/total_workers)*100:.1f}%" if total_workers else "0%")
 
     st.subheader("📊 Overall Safety Overview")
 
@@ -160,10 +132,11 @@ def camera_page(title, cam_id, cam_key):
 
     st.metric("👷 Total Workers", d["total"])
 
+    # SAFETY ALERT
     if d["helmet_no"] > 0:
-        st.markdown('<div class="warning">⚠️ Helmet Missing</div>', unsafe_allow_html=True)
+        st.markdown('<div class="warning">⚠️ Some workers are NOT wearing helmets</div>', unsafe_allow_html=True)
     else:
-        st.markdown('<div class="safe">✅ All Workers Safe</div>', unsafe_allow_html=True)
+        st.markdown('<div class="safe">✅ All workers are safe</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
@@ -173,12 +146,13 @@ def camera_page(title, cam_id, cam_key):
     col2.pyplot(pie_chart([d["vest_yes"], d["vest_no"]],
                          ["Vest", "No Vest"]))
 
-    st.subheader("👷 Worker Details")
+    # ---------------- WORKER ESTIMATION ----------------
+    st.subheader("👷 Worker Summary")
 
-    for w in d["workers"]:
-        helmet = "✅" if w["helmet"] else "❌"
-        vest = "✅" if w["vest"] else "❌"
-        st.write(f"Worker {w['id']} → Helmet: {helmet} | Vest: {vest}")
+    st.write(f"✔ Workers with Helmet: {d['helmet_yes']}")
+    st.write(f"❌ Workers without Helmet: {d['helmet_no']}")
+    st.write(f"✔ Workers with Vest: {d['vest_yes']}")
+    st.write(f"❌ Workers without Vest: {d['vest_no']}")
 
 # ---------------- NAVIGATION ----------------
 if "page" not in st.session_state:
