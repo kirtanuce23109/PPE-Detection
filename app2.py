@@ -1,118 +1,122 @@
 import streamlit as st
-import json
+import cv2
+import tempfile
+import pandas as pd
 import matplotlib.pyplot as plt
+from ultralytics import YOLO
+from deep_sort_realtime.deepsort_tracker import DeepSort
 
-st.set_page_config(page_title="PPE Tracking Dashboard", layout="wide")
+st.title("👷 PPE Detection with Tracking Dashboard")
 
-# ---------------- STYLE ----------------
-st.markdown("""
-<style>
-body { background-color: #0B0F1A; color: white; }
+uploaded_file = st.file_uploader("Upload Video", type=["mp4"])
 
-.safe {
-    background-color: #00c853;
-    padding: 10px;
-    border-radius: 10px;
-    text-align:center;
-}
+if uploaded_file is not None:
 
-.danger {
-    background-color: #ff1744;
-    padding: 10px;
-    border-radius: 10px;
-    text-align:center;
-}
-</style>
-""", unsafe_allow_html=True)
+    # Save video
+    tfile = tempfile.NamedTemporaryFile(delete=False)
+    tfile.write(uploaded_file.read())
 
-# ---------------- LOAD JSON ----------------
-def load_workers(file):
-    try:
-        with open(file, "r") as f:
-            return json.load(f)
-    except:
-        return {}
+    # Load model
+    model = YOLO("best.pt")
 
-workers = load_workers("cam1_workers.json")
+    # Initialize tracker
+    tracker = DeepSort(max_age=30)
 
-# ---------------- VIDEO ----------------
-video_id = "1-lmVREDPnH03Qyo5tJ1pT4pioM8MsD_Q"
+    cap = cv2.VideoCapture(tfile.name)
 
-def show_video(file_id):
-    st.markdown(f"""
-    <iframe src="https://drive.google.com/file/d/{file_id}/preview"
-    width="100%" height="350"></iframe>
-    """, unsafe_allow_html=True)
+    stframe = st.empty()
 
-# ---------------- CALCULATIONS ----------------
-total_workers = len(workers)
+    workers = {}
 
-helmet_yes = 0
-vest_yes = 0
+    fps = cap.get(cv2.CAP_PROP_FPS)
 
-for w in workers.values():
-    if w["helmet_time"] > w["no_helmet_time"]:
-        helmet_yes += 1
-    if w["vest_time"] > w["no_vest_time"]:
-        vest_yes += 1
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-helmet_no = total_workers - helmet_yes
-vest_no = total_workers - vest_yes
+        results = model(frame)
 
-# ---------------- PIE FUNCTION ----------------
-def pie_chart(values, labels):
-    if sum(values) == 0:
-        fig, ax = plt.subplots()
-        ax.text(0.5, 0.5, "No Data", ha='center')
-        ax.axis("off")
-        return fig
+        detections = []
+        helmets = []
+        vests = []
 
-    fig, ax = plt.subplots()
-    ax.pie(values, labels=labels, autopct='%1.1f%%')
-    return fig
+        for r in results:
+            for box in r.boxes:
+                cls = int(box.cls[0])
+                conf = float(box.conf[0])
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
 
-# ---------------- UI ----------------
-st.title("🚧 PPE WORKER TRACKING DASHBOARD")
+                if cls == 0:  # person
+                    detections.append(([x1, y1, x2-x1, y2-y1], conf, 'person'))
+                elif cls == 1:
+                    helmets.append((x1,y1,x2,y2))
+                elif cls == 2:
+                    vests.append((x1,y1,x2,y2))
 
-# VIDEO
-show_video(video_id)
+        tracks = tracker.update_tracks(detections, frame=frame)
 
-# METRICS
-col1, col2, col3 = st.columns(3)
+        for track in tracks:
+            if not track.is_confirmed():
+                continue
 
-col1.metric("👷 Total Workers", total_workers)
+            track_id = track.track_id
+            l, t, w, h = map(int, track.to_ltrb())
 
-helmet_percent = (helmet_yes / total_workers * 100) if total_workers else 0
-vest_percent = (vest_yes / total_workers * 100) if total_workers else 0
+            px1, py1, px2, py2 = l, t, l+w, t+h
 
-col2.metric("🪖 Helmet Compliance", f"{helmet_percent:.1f}%")
-col3.metric("🦺 Vest Compliance", f"{vest_percent:.1f}%")
+            if track_id not in workers:
+                workers[track_id] = {
+                    "helmet_time": 0,
+                    "no_helmet_time": 0,
+                    "vest_time": 0,
+                    "no_vest_time": 0
+                }
 
-# SAFETY ALERT
-if helmet_no > 0 or vest_no > 0:
-    st.markdown('<div class="danger">⚠️ Unsafe Workers Detected</div>', unsafe_allow_html=True)
-else:
-    st.markdown('<div class="safe">✅ All Workers Safe</div>', unsafe_allow_html=True)
+            has_helmet = any(hx1>px1 and hx2<px2 for hx1,_,hx2,_ in helmets)
+            has_vest = any(vx1>px1 and vx2<px2 for vx1,_,vx2,_ in vests)
 
-# CHARTS
-c1, c2 = st.columns(2)
+            time_increment = 1 / fps
 
-c1.pyplot(pie_chart([helmet_yes, helmet_no], ["Helmet", "No Helmet"]))
-c2.pyplot(pie_chart([vest_yes, vest_no], ["Vest", "No Vest"]))
+            if has_helmet:
+                workers[track_id]["helmet_time"] += time_increment
+            else:
+                workers[track_id]["no_helmet_time"] += time_increment
 
-# ---------------- WORKER TABLE ----------------
-st.subheader("👷 Worker-wise Tracking (Time Based)")
+            if has_vest:
+                workers[track_id]["vest_time"] += time_increment
+            else:
+                workers[track_id]["no_vest_time"] += time_increment
 
-for wid, w in workers.items():
+            # 🎨 DRAW
+            cv2.rectangle(frame, (px1,py1), (px2,py2), (255,0,0), 2)
+            cv2.putText(frame, f"ID: {track_id}", (px1,py1-50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
 
-    helmet_status = "✅" if w["helmet_time"] > w["no_helmet_time"] else "❌"
-    vest_status = "✅" if w["vest_time"] > w["no_vest_time"] else "❌"
+            if has_helmet:
+                cv2.putText(frame, "Helmet", (px1,py1-30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+            else:
+                cv2.putText(frame, "No Helmet", (px1,py1-30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255), 2)
 
-    st.markdown(f"""
-    **Worker {wid}**
-    - 🪖 Helmet Time: {w['helmet_time']:.2f} sec
-    - ❌ No Helmet Time: {w['no_helmet_time']:.2f} sec
-    - 🦺 Vest Time: {w['vest_time']:.2f} sec
-    - ❌ No Vest Time: {w['no_vest_time']:.2f} sec
-    - Status: Helmet {helmet_status} | Vest {vest_status}
-    """)
+            if has_vest:
+                cv2.putText(frame, "Vest", (px1,py1-10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255), 2)
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        stframe.image(frame)
+
+    cap.release()
+
+    # 📊 DATAFRAME
+    df = pd.DataFrame(workers).T
+
+    st.subheader("📋 Worker PPE Time (seconds)")
+    st.dataframe(df.round(2))
+
+    # 📊 GRAPH
+    st.subheader("📊 PPE Compliance")
+
+    df.plot(kind="bar")
+    st.pyplot(plt)
